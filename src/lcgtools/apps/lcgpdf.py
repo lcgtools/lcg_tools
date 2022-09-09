@@ -47,7 +47,8 @@ def get_app_properties(game=None, create=False):
                             ('card_height_mm', float),
                             ('card_bleed_mm', float),
                             ('card_min_spacing_mm', float),
-                            ('card_fold_distance_mm', float))
+                            ('card_fold_distance_mm', float),
+                            ('twosided', str))
         app_general_prop = (('backside_image_file', str),
                             ('backside_bleed_mm', float))
         conf = ar.user_properties_ini(prefix=game, defaults=app_default_prop,

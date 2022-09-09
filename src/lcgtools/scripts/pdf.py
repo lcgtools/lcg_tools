@@ -70,9 +70,10 @@ class Arguments(object):
                             default=[], type=str, help='card list')
         parser.add_argument('--stdin', action='store_true',
                             help='read card image list(s) from stdin')
-        parser.add_argument('--pagesize', metavar='FORMAT', nargs=1, type=str,
-                            default=[None, ], help='page size ([a4], a3, '
-                            'letter or tabloid)')
+        parser.add_argument('--pagesize', nargs=1, type=str.lower,
+                            default=[None, ],
+                            choices=['a4', 'a3', 'letter', 'tabloid'],
+                            help='page size')
         parser.add_argument('--bleed', metavar='MM', nargs=1, type=float,
                             default=[None], help='bleed in mm [a4/a3:3, '
                             'letter/tabloid:1.5]')
@@ -100,15 +101,16 @@ class Arguments(object):
                             'in mm [0]')
         parser.add_argument('--no_rotate', action='store_true',
                             help='disable automatic card rotation')
-        parser.add_argument('--rotate_dir', metavar='DIR', nargs=1, type=str,
+        parser.add_argument('--rotate_dir', nargs=1, type=str.lower,
                             default=['anticlockwise', ],
-                            help='rotate direction ([anticlockwise] or '
-                            'clockwise)')
+                            choices=['clockwise', 'anticlockwise'],
+                            help='rotate direction')
         parser.add_argument('--twosided', action='store_true',
                             help='if set print twosided instead of foldable')
-        parser.add_argument('--feed_dir', metavar='ASPECT', nargs=1, type=str,
-                            default=[None, ], help='print aspect for '
-                            '2-sided print ([portrait] or landscape)')
+        parser.add_argument('--feed_dir', nargs=1, type=str.lower,
+                            default=[None],
+                            choices=['portrait', 'landscape'],
+                            help='print aspect for 2-sided print')
         parser.add_argument('--only_front', action='store_true',
                             help='print only front sides for 2-sided print')
         parser.add_argument('--only_back', action='store_true',
@@ -153,7 +155,7 @@ class Arguments(object):
         self.parse_stdin = args.stdin
         self.no_rotate = args.no_rotate
         self.rotate_dir, = args.rotate_dir
-        self.rotate_dir = self.rotate_dir.lower()
+        self.rotate_dir = self.rotate_dir
         self.twosided = args.twosided
         self.feed_dir, = args.feed_dir
         self.only_front = args.only_front
@@ -180,7 +182,6 @@ class Arguments(object):
         profile = self.profile
         if self.pagesize is None:
             self.pagesize = c_prop('pagesize', profile=profile, default='a4')
-        self.pagesize = self.pagesize.lower()
         if self.width is None:
             self.width = c_prop('card_width_mm', profile=profile, default=63.5)
         if self.height is None:
@@ -210,6 +211,16 @@ class Arguments(object):
             self.back_offset_x = 0
         if self.back_offset_y is None:
             self.back_offset_y = 0
+        if not self.twosided:
+            twosided_str = c_prop('twosided', profile=profile,
+                                  default='False').lower()
+            if twosided_str == 'false':
+                self.twosided = False
+            elif twosided_str == 'true':
+                self.twosided = True
+            else:
+                raise LcgException('Config file option "twosided" must be '
+                                   'one of the strings "True" or "False"')
 
         # Set profile specific defaults
         if self.back_file is None and profile is not None:
@@ -224,15 +235,6 @@ class Arguments(object):
             else:
                 self.back_bleed = 0
 
-        # Validate some values
-        if self.pagesize not in ('a4', 'a3', 'letter', 'tabloid'):
-            raise LcgException(f'Illegal pagesize: {self.pagesize}')
-        if self.rotate_dir not in ('clockwise', 'anticlockwise'):
-            raise LcgException(f'Illegal rotate_dir: {self.rotate_dir}')
-        if self.feed_dir not in ('portrait', 'landscape'):
-            raise LcgException(f'Illegal feed_dir: {self.feed_dir}')
-
-
 def main():
     generator = None
     args = None
@@ -241,10 +243,10 @@ def main():
         verb = lambda msg: sys.stderr.write(msg+'\n') if args.verbose else None
         if args.conf:
             if args.game:
-                verb(f'\nLoaded app properties file for game {args.game}: '
+                verb(f'\nLoaded app properties file for game {args.game}:\n'
                      f'{args.conf.filename}')
             else:
-                verb(f'\nLoaded default app properties file: '
+                verb(f'\nLoaded default app properties file:\n  '
                      f'{args.conf.filename}')
 
         if args.only_front and args.only_back:
@@ -326,8 +328,8 @@ def main():
                 back_img = generator.loadCard(args.back_file,
                                               trans=aspect_trans,
                                               bleed=args.back_bleed)
-                verb(f'- loaded back side ({args.back_bleed:.1f} mm bleed) '
-                     f'"{args.back_file}"')
+                verb(f'- loaded back side ({args.back_bleed:.1f} mm bleed):'
+                     f'    "{args.back_file}"')
                 if not args.twosided:
                     back_img = back_img.rotateHalfCircle()
             else:

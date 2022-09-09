@@ -1,0 +1,11 @@
+v0.5.3
+- Fix: corrected case for default section in example.ini config file
+- New: added 'twosided' option for lcg_pdf config file
+- Fix: twosided output no longer crashes if final page has max number cards
+- New: added configparser 'choices' mechanism for cmd line multichoice options
+
+v0.5.2
+- Fix: corrected URLs for lcgtools PyPI page
+
+v0.5.0
+- Initial release

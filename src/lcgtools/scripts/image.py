@@ -66,15 +66,15 @@ class Arguments(object):
                             default=[None],
                             help='output filename is prefix+input (in its'
                             'current directory)')
-        parser.add_argument('--to_portrait', action='store_true',
-                            help='if card has landscape aspect, rotate')
-        parser.add_argument('--to_landscape', action='store_true',
-                            help='if card has portrait aspect, rotate')
-        parser.add_argument('--rotate', action='store_true',
+        parser.add_argument('--rotate_to_aspect', nargs=1, type=str.lower,
+                            default=[None, ], choices=['portrait', 'landscape'],
+                            help='rotate to target aspect')
+        parser.add_argument('--rotate_all', action='store_true',
                             help='performs rotation on all cards')
-        parser.add_argument('--rotate_dir', metavar='DIR', nargs='?', type=str,
-                            default='anticlockwise',
-                            help='rotate direction [anticlockwise]')
+        parser.add_argument('--rotate_dir', nargs=1, type=str.lower,
+                            default=['anticlockwise', ],
+                            choices=['clockwise', 'anticlockwise'],
+                            help='rotate direction')
         parser.add_argument('--resize', action='store_true',
                             help='set image size (after rotation, before '
                             'adding any bleed)')
@@ -97,24 +97,20 @@ class Arguments(object):
         self.resize = args.resize
         self.width, = args.width
         self.height, = args.height
-        self.to_portrait = args.to_portrait
-        self.to_landscape = args.to_landscape
-        self.rotate = args.rotate
-        self.rotate_dir = args.rotate_dir.lower()
+        self.to_aspect, = args.rotate_to_aspect
+        self.rotate = args.rotate_all
+        self.rotate_dir, = args.rotate_dir
         self.verbose = args.verbose
 
         if self.prefix is None and self.output is None:
             raise LcgException('Either prefix or output must be set')
         if self.prefix is not None and self.output is not None:
             raise LcgException('Prefix and output cannot both be set')
-        _num_rotate = sum(1 for i in (self.to_portrait, self.to_landscape,
-                                      self.rotate) if i)
-        if _num_rotate > 1:
-            raise LcgException('Only one of --to_portrait, --to_landscape or '
-                               '--rotate may be specified')
-        if self.rotate_dir not in ('clockwise', 'anticlockwise'):
-            raise LcgException('--rotate_dir must be "clockwise" or '
-                               '"anticlockwise"')
+        if self.to_aspect is not None and self.rotate:
+            raise LcgException('Only one of --rotate_all and '
+                               '--rotate_to_aspect may be specified')
+        self.to_portrait = (self.to_aspect == 'portrait')
+        self.to_landscape = (self.to_aspect == 'landscape')
 
 
 # Main program
@@ -186,6 +182,6 @@ def main():
         verb(f'Saving result as "{out_name}"\n')
         img.save(out_name)
 
-        
+
 if __name__ == '__main__':
     main()

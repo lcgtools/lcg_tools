@@ -20,5 +20,9 @@
 
 """Generic shared functionality for lcgtools."""
 
+# lcgtools version number
+__version__ = '0.5.3'
+
+
 class LcgException(Exception):
     """General lcgtools exception."""

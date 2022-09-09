@@ -611,6 +611,8 @@ class LcgCardPdfGenerator(QtGui.QPdfWriter):
 
     def _flush_card_cache(self):
         """Draws the cards in the card cache (for 2-sided printing)."""
+        if not self._card_cache:
+            return
         cards_per_row = self._cards_per_page
         cards_per_page = 2*cards_per_row
         fronts, backs = zip(*(self._card_cache))
