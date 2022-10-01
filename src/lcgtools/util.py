@@ -28,7 +28,8 @@ import tempfile
 
 from lcgtools import LcgException
 
-__all__ = ['LcgAppResources', 'LcgConfigFile', 'LcgPropertiesFile']
+__all__ = ['LcgAppResources', 'LcgConfigFile', 'LcgPropertiesFile',
+           'Utility']
 
 
 class LcgAppResources(object):
@@ -65,16 +66,17 @@ class LcgAppResources(object):
 
         """
         pf = self._platform
+        subdir = 'lcgtools'
         if pf == 'Linux':
-            path = os.path.join(self._home, '.config/', self._appname)
+            path = os.path.join(self._home, '.config/', subdir)
         elif pf == 'Darwin':
             path = os.path.join(self._home, 'Library/Application Support/',
-                                self._appname)
+                                subdir)
         elif pf == 'Windows':
             _roaming_path = os.path.join('Appdata', 'Roaming')
             _local_path = os.path.join('Appdata', 'Local')
             top = _roaming_path if self._roaming else _local_path
-            path = os.path.join(self._home, top, self._author, self._appname)
+            path = os.path.join(self._home, top, self._author, subdir)
         else:
             raise RuntimeError('Should never happen')
         if create:
@@ -449,3 +451,31 @@ class LcgPropertiesFile(LcgConfigFile):
     def properties(self):
         """Set of allowed property names for non-default sections."""
         return set(self._properties.keys())
+
+
+class Utility(object):
+    """Aggregation of various utility function as class methods."""
+
+    @classmethod
+    def path_relative_to_home(cls, path, shortest=True):
+        """Replaces with path relative to home dir.
+
+        :param     path: path to replace
+        :type      path: str
+        :param shortest: if True, return path relative to home only if shorter
+        :return:         path, possibly modified
+        :rtype:          str
+
+        """
+        abs_path = os.path.abspath(path)
+        home = os.path.expanduser('~')
+        if abs_path.startswith(home):
+            rel_path = '~' + abs_path[len(home):]
+            if os.path.isdir(abs_path) and not rel_path.endswith(os.sep):
+                rel_path += os.sep
+        else:
+            rel_path = None
+        if rel_path is None or (shortest and len(rel_path) >= len(path)):
+            return path
+        else:
+            return rel_path

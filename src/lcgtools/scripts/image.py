@@ -26,8 +26,9 @@ import os.path
 import sys
 import textwrap
 
-from lcgtools import LcgException
+from lcgtools import LcgException, __version__
 from lcgtools.graphics import LcgImage
+from lcgtools.util import Utility
 from PySide6.QtWidgets import QApplication
 
 
@@ -57,17 +58,16 @@ class Arguments(object):
         formatter = RawDescriptionHelpFormatter
         parser = ArgumentParser(description='Make changes to card image(s).',
                                 formatter_class=formatter, epilog=epilog)
-        parser.add_argument('input', metavar='IMAGE', nargs='+', type=str,
+        parser.add_argument('input', metavar='IMG', nargs='+', type=str,
                             help='source image(s) or dir(s)')
-        parser.add_argument('--output', metavar='FILE', nargs=1, type=str,
-                            default=[None],
-                            help='output file for single image with  bleed')
+        parser.add_argument('-o', '--output', metavar='IMG', nargs=1,
+                            type=str, default=[None],
+                            help='output file for single image with bleed')
         parser.add_argument('--prefix', metavar='PREFIX', nargs=1, type=str,
-                            default=[None],
-                            help='output filename is prefix+input (in its'
-                            'current directory)')
-        parser.add_argument('--rotate_to_aspect', nargs=1, type=str.lower,
-                            default=[None, ], choices=['portrait', 'landscape'],
+                            default=[None], help='output as prefix+input')
+        parser.add_argument('-a', '--rotate_to_aspect', nargs=1,
+                            type=str.lower, default=[None, ],
+                            choices=['portrait', 'landscape'],
                             help='rotate to target aspect')
         parser.add_argument('--rotate_all', action='store_true',
                             help='performs rotation on all cards')
@@ -75,19 +75,21 @@ class Arguments(object):
                             default=['anticlockwise', ],
                             choices=['clockwise', 'anticlockwise'],
                             help='rotate direction')
-        parser.add_argument('--resize', action='store_true',
+        parser.add_argument('-r', '--resize', action='store_true',
                             help='set image size (after rotation, before '
-                            'adding any bleed)')
-        parser.add_argument('--width', metavar='MM', nargs=1, type=float,
-                            default=[63.5, ],
-                            help='new (rotated) width in mm [63.5]')
-        parser.add_argument('--height', metavar='MM', nargs=1, type=float,
+                            'adding bleed)')
+        parser.add_argument('-W', '--width', metavar='MM', nargs=1, type=float,
+                            default=[61.5, ],
+                            help='new (rotated) width in mm [61.5]')
+        parser.add_argument('-H', '--height', metavar='MM', nargs=1, type=float,
                             default=[88, ],
                             help='new (rotated) height in mm [88]')
-        parser.add_argument('--bleed', metavar='MM', nargs=1, type=float,
+        parser.add_argument('-b', '--bleed', metavar='MM', nargs=1, type=float,
                             default=[0], help='added bleed in mm [0]')
-        parser.add_argument('--verbose', action='store_true',
+        parser.add_argument('-v', '--verbose', action='store_true',
                             help='enable verbose output to stderr')
+        parser.add_argument('--version', action='version',
+                            version=f'%(prog)s {__version__}')
         args = parser.parse_args(sys.argv[1:])
 
         self.inputs = args.input
@@ -142,7 +144,8 @@ def main():
 
     for img_name in inputs:
         # Open input image
-        verb(f'Loading image "{img_name}"')
+        _img = Utility.path_relative_to_home(img_name)
+        verb(f'Loading image: {_img}')
         img = LcgImage(img_name)
         if img.isNull():
             raise LcgException(f'Could not load as LcgImage: "{img_name}"')
@@ -179,7 +182,8 @@ def main():
             img_filename = os.path.basename(img_name)
             img_filename = args.prefix + img_filename
             out_name = os.path.join(img_dir_path, img_filename)
-        verb(f'Saving result as "{out_name}"\n')
+        _out = Utility.path_relative_to_home(out_name)
+        verb(f'Saving result as {_out}\n')
         img.save(out_name)
 
 

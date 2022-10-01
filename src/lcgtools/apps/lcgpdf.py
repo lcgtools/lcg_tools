@@ -20,6 +20,8 @@
 
 """Shared code for the lcg_pdf script."""
 
+import os
+
 from lcgtools import LcgException
 from lcgtools.util import LcgAppResources
 
@@ -36,6 +38,9 @@ def get_app_properties(game=None, create=False):
     :rtype:        :class:`lcgtools.util.LcgPropertiesFile`
     :raises:       :exc:`lcgtools.LcgException`
 
+    If *game* is specified, then the config object will reference a file
+    `games/[game].ini` within the lcgtools apps config folder.
+
     """
     try:
         ar = LcgAppResources(appname='lcg_pdf', author='Cloudberries',)
@@ -48,9 +53,14 @@ def get_app_properties(game=None, create=False):
                             ('card_bleed_mm', float),
                             ('card_min_spacing_mm', float),
                             ('card_fold_distance_mm', float),
-                            ('twosided', str))
+                            ('twosided', str),
+                            ('verbose', str),
+                            ('overwrite', str),
+                            ('append', str))
         app_general_prop = (('backside_image_file', str),
                             ('backside_bleed_mm', float))
+        if game:
+            game = os.path.join('games', game)
         conf = ar.user_properties_ini(prefix=game, defaults=app_default_prop,
                                       general=app_general_prop, create=create)
     except LcgException:

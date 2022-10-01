@@ -191,6 +191,23 @@ class LcgImage(QtGui.QImage):
         """
         self.setDotsPerMeterY(self.height()*1000/height)
 
+    def saveToBytes(self, format='PNG'):
+        """Saves the image as a bytes object.
+
+        :param format: image format (as expected by :meth:`QtGui.QImage.save`)
+        :param format: str
+        :return:       saved image (or None if unable to save)
+        :rtype:        bytes
+
+        """
+        qba = QtCore.QByteArray()
+        qbuf = QtCore.QBuffer(qba)
+        qbuf.open(QtCore.QIODevice.WriteOnly)
+        if not self.save(qbuf, format):
+            return None
+        else:
+            return qba.data()
+
 
 class LcgImageTransform(object):
     """Can perform a transform on a :class:`LcgImage`.
@@ -365,10 +382,11 @@ class LcgCardPdfGenerator(QtGui.QPdfWriter):
         if not self._done:
             self.abort()
 
-    def loadCard(self, filename, trans=None, bleed=0, adjust=True):
-        """Load card from file and generate scaled QImage with required bleed.
+    def loadCard(self, image, trans=None, bleed=0, adjust=True):
+        """Load card from image and generate scaled QImage with required bleed.
 
-        :param filename: name of image file
+        :param    image: image or file name of image
+        :type     image: :class:`QtGui.QImage` or str
         :param    trans: transform to perform on loaded image before other
                          processing (or None)
         :type     trans: :class:`lcgtools.graphics.LcgImageTransform`
@@ -387,9 +405,15 @@ class LcgCardPdfGenerator(QtGui.QPdfWriter):
         w_px = self.mm_to_px(c_tot_width_mm)
         h_px = self.mm_to_px(c_tot_height_mm)
 
-        img = LcgImage(filename)
-        if img.isNull():
-            raise LcgException(f'Could not load as QImage: "{filename}"')
+        if isinstance(image, QtGui.QImage):
+            if isinstance(image, LcgImage):
+                img = image
+            else:
+                img = LcgImage(image)
+        else:
+            img = LcgImage(image)
+            if img.isNull():
+                raise LcgException(f'Could not load as QImage: "{image}"')
         if trans:
             if not isinstance(trans, LcgImageTransform):
                 raise TypeError('trans argument must be LcgImageTransform')

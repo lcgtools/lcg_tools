@@ -27,9 +27,10 @@ import os.path
 import sys
 import textwrap
 
-from lcgtools import LcgException
+from lcgtools import LcgException, __version__
 from lcgtools.apps.lcgpdf import get_app_properties
 from lcgtools.graphics import LcgImage
+from lcgtools.util import Utility
 
 
 class Arguments(object):
@@ -56,13 +57,13 @@ class Arguments(object):
         parser.add_argument('--front_bleed', metavar='MM', nargs=1, type=float,
                             default=[None], help='bleed in front image '
                             'file(s) in mm [0]')
-        parser.add_argument('--back', metavar='BACK_IMG', nargs=1, type=str,
-                            default=[None], help='back side image for cards')
+        parser.add_argument('-b', '--back', metavar='BACK_IMG', nargs=1,
+                            type=str, default=[None], help='back side image for cards')
         parser.add_argument('--back_bleed', metavar='MM', nargs=1, type=float,
                             default=[None], help='bleed in back image file '
                             'in mm [default 0]')
-        parser.add_argument('--output', metavar='FILE', nargs=1, type=str,
-                            default=[None], help='write card list to file '
+        parser.add_argument('-o', '--output', metavar='FILE', nargs=1,
+                            type=str, default=[None], help='write card list to file '
                             '(otherwise stdout)')
         parser.add_argument('--append', action='store_true',
                             help='append to output file')
@@ -70,18 +71,20 @@ class Arguments(object):
                             help='pass on card image list(s) from stdin')
         parser.add_argument('--first', action='store_true',
                             help='if set insert before any files from stdin')
-        parser.add_argument('--conf', action='store_true',
-                            help='use the application config file')
-        parser.add_argument('--game', metavar='NAME', nargs=1, type=str,
+        parser.add_argument('-c', '--conf', action='store_true',
+                            help='use the lcg_pdf application config file')
+        parser.add_argument('-g', '--game', metavar='NAME', nargs=1, type=str,
                             default=[None, ], help='game name (base of .ini '
                             'config file name)')
-        parser.add_argument('--profile', metavar='NAME', nargs=1, type=str,
-                            default=[None, ], help='profile in config file '
-                            'for listed cards')
-        parser.add_argument('--verbose', action='store_true',
+        parser.add_argument('-p', '--profile', metavar='NAME', nargs=1,
+                            type=str, default=[None, ],
+                            help='profile in config file for listed cards')
+        parser.add_argument('-v', '--verbose', action='store_true',
                             help='enable verbose output to stderr')
         parser.add_argument('--exc', action='store_true',
                             help='show full python exception traces')
+        parser.add_argument('--version', action='version',
+                            version=f'%(prog)s {__version__}')
         args = parser.parse_args(sys.argv[1:])
 
         self.front_files = args.front_files
@@ -124,6 +127,21 @@ class Arguments(object):
             else:
                 self.back_bleed = 0
 
+        # Handle True/False values from config file
+        def get_str_bool_prop(prop):
+            value_str = c_prop(prop, profile=profile, default='False').lower()
+            if value_str == 'false':
+                return False
+            elif value_str == 'true':
+                return True
+            else:
+                raise LcgException(f'Config file option "{prop}" must be '
+                                   f'one of the strings "True" or "False"')
+        if not self.verbose:
+            self.verbose = get_str_bool_prop('verbose')
+        if not self.append:
+            self.append = get_str_bool_prop('append')
+
         if self.back_file is None:
             raise LcgException('Back side image must be set either as --back '
                                'or in a config file')
@@ -137,11 +155,12 @@ def main():
         verb = lambda s: sys.stderr.write(s + '\n') if args.verbose else None
 
         if args.out_file is not None:
+            _outfile = Utility.path_relative_to_home(args.out_file)
             if args.append:
-                verb(f'Appending card list to file {args.out_file}')
+                verb(f'Appending card list to file: {_outfile}')
                 out = open(args.out_file, 'a')
             else:
-                verb(f'(Over)writing card list to file {args.out_file}')
+                verb(f'(Over)writing card list to file: {_outfile}')
                 out = open(args.out_file, 'w')
         else:
             verb(f'Writing card list to stdout')
@@ -168,15 +187,16 @@ def main():
                     raise LcgException(f'Not a valid image: "{f}"')
                 front_files.append(f)
 
-        verb(f'Specifying card back side image       : "{args.back_file}"')
+        _back_file = Utility.path_relative_to_home(args.back_file)
+        verb(f'Specifying card back side image:\n  {_back_file}')
         out.write(f'{args.back_file}\n')
-        verb(f'Setting bleed included on back        : {args.back_bleed} mm')
+        verb(f'Setting bleed included on back: {args.back_bleed} mm')
         out.write(f'{args.back_bleed}\n')
         verb(f'Setting bleed included on loaded cards: {args.front_bleed} mm')
         out.write(f'{args.front_bleed}\n')
 
         for f in front_files:
-            verb(f'Adding image: {f}')
+            verb(f'Adding image: {Utility.path_relative_to_home(f)}')
             out.write(f'{f}\n')
         out.write('\n')
 
@@ -193,6 +213,6 @@ def main():
         if args and args.exc:
             raise e
 
-        
+
 if __name__ == '__main__':
     main()

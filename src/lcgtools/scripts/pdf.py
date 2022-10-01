@@ -28,9 +28,10 @@ import os.path
 import sys
 import textwrap
 
-from lcgtools import LcgException
+from lcgtools import LcgException, __version__
 from lcgtools.apps.lcgpdf import get_app_properties
 from lcgtools.graphics import LcgCardPdfGenerator, LcgAspectRotation, LcgImage
+from lcgtools.util import Utility
 from PySide6.QtWidgets import QApplication
 
 
@@ -62,12 +63,12 @@ class Arguments(object):
                                 formatter_class=formatter, epilog=epilog)
         parser.add_argument('front_files', metavar='IMAGE', nargs='*',
                             help='card front image filename(s) or dir(s)')
-        parser.add_argument('--output', metavar='PDF_FILE', nargs=1, type=str,
-                            required=True, help='PDF output file')
+        parser.add_argument('-o', '--output', metavar='PDF', nargs=1,
+                            type=str, required=True, help='PDF output file')
         parser.add_argument('--overwrite', action='store_true',
                             help='overwrite output file if it already exists')
-        parser.add_argument('--list', metavar='L', action='extend', nargs=1,
-                            default=[], type=str, help='card list')
+        parser.add_argument('-l', '--list', metavar='L', action='extend',
+                            nargs=1, default=[], type=str, help='card list')
         parser.add_argument('--stdin', action='store_true',
                             help='read card image list(s) from stdin')
         parser.add_argument('--pagesize', nargs=1, type=str.lower,
@@ -78,7 +79,7 @@ class Arguments(object):
                             default=[None], help='bleed in mm [a4/a3:3, '
                             'letter/tabloid:1.5]')
         parser.add_argument('--width', metavar='MM', nargs=1, type=float,
-                            default=[None], help='card width in mm [63.5]')
+                            default=[None], help='card width in mm [61.5]')
         parser.add_argument('--height', metavar='MM', nargs=1, type=float,
                             default=[None], help='card height in mm [88]')
         parser.add_argument('--dpi', nargs=1, type=int, default=[None],
@@ -94,8 +95,9 @@ class Arguments(object):
         parser.add_argument('--front_bleed', metavar='MM', nargs=1, type=float,
                             default=[None], help='bleed in front image '
                             'file(s) in mm [0]')
-        parser.add_argument('--back', metavar='BACK_IMG', nargs=1, type=str,
-                            default=[None], help='back image for cards')
+        parser.add_argument('-b', '--back', metavar='IMG', nargs=1,
+                            type=str, default=[None],
+                            help='back image for cards')
         parser.add_argument('--back_bleed', metavar='MM', nargs=1, type=float,
                             default=[None], help='bleed in back image file '
                             'in mm [0]')
@@ -123,18 +125,20 @@ class Arguments(object):
                             type=float, default=[None],
                             help='back side y offset in mm for 2-sided '
                             'print [0]')
-        parser.add_argument('--conf', action='store_true',
+        parser.add_argument('-c', '--conf', action='store_true',
                             help='use the application config file')
-        parser.add_argument('--game', metavar='NAME', nargs=1, type=str,
+        parser.add_argument('-g', '--game', metavar='NAME', nargs=1, type=str,
                             default=[None, ], help='game name (base of .ini '
                             'config file name)')
-        parser.add_argument('--profile', metavar='NAME', nargs=1, type=str,
-                            default=[None, ], help='profile in config file '
-                            'for listed cards')
-        parser.add_argument('--verbose', action='store_true',
+        parser.add_argument('-p', '--profile', metavar='NAME', nargs=1,
+                            type=str, default=[None, ],
+                            help='profile in config file for listed cards')
+        parser.add_argument('-v', '--verbose', action='store_true',
                             help='enable verbose output to stderr')
         parser.add_argument('--exc', action='store_true',
                             help='show full python exception traces')
+        parser.add_argument('--version', action='version',
+                            version=f'%(prog)s {__version__}')
         args = parser.parse_args(sys.argv[1:])
 
         self.front_files = args.front_files
@@ -183,7 +187,7 @@ class Arguments(object):
         if self.pagesize is None:
             self.pagesize = c_prop('pagesize', profile=profile, default='a4')
         if self.width is None:
-            self.width = c_prop('card_width_mm', profile=profile, default=63.5)
+            self.width = c_prop('card_width_mm', profile=profile, default=61.5)
         if self.height is None:
             self.height = c_prop('card_height_mm', profile=profile, default=88)
         if self.dpi is None:
@@ -211,16 +215,23 @@ class Arguments(object):
             self.back_offset_x = 0
         if self.back_offset_y is None:
             self.back_offset_y = 0
-        if not self.twosided:
-            twosided_str = c_prop('twosided', profile=profile,
-                                  default='False').lower()
-            if twosided_str == 'false':
-                self.twosided = False
-            elif twosided_str == 'true':
-                self.twosided = True
+
+        # Handle True/False values from config file
+        def get_str_bool_prop(prop):
+            value_str = c_prop(prop, profile=profile, default='False').lower()
+            if value_str == 'false':
+                return False
+            elif value_str == 'true':
+                return True
             else:
-                raise LcgException('Config file option "twosided" must be '
-                                   'one of the strings "True" or "False"')
+                raise LcgException(f'Config file option "{prop}" must be '
+                                   f'one of the strings "True" or "False"')
+        if not self.twosided:
+            self.twosided = get_str_bool_prop('twosided')
+        if not self.verbose:
+            self.verbose = get_str_bool_prop('verbose')
+        if not self.overwrite:
+            self.overwrite = get_str_bool_prop('overwrite')
 
         # Set profile specific defaults
         if self.back_file is None and profile is not None:
@@ -242,12 +253,13 @@ def main():
         args = Arguments()
         verb = lambda msg: sys.stderr.write(msg+'\n') if args.verbose else None
         if args.conf:
+            _conf_file = Utility.path_relative_to_home(args.conf.filename)
             if args.game:
                 verb(f'\nLoaded app properties file for game {args.game}:\n'
-                     f'{args.conf.filename}')
+                     f'{_conf_file}')
             else:
-                verb(f'\nLoaded default app properties file:\n  '
-                     f'{args.conf.filename}')
+                verb(f'\nLoaded default app properties file:\n'
+                     f'{_conf_file}')
 
         if args.only_front and args.only_back:
             raise LcgException('Cannot apply both of --only_front and '
@@ -285,10 +297,11 @@ def main():
 
         verb('')
         if not args.twosided:
-            verb('Folded output format (front & back on same page with '
-                 'fold line)')
+            verb('Generating folded output format (front & back on same page '
+                 'with fold line)')
         else:
-            verb('2-sided output format (fronts and backs on separate pages)')
+            verb('Generating 2-sided output format (fronts and backs on '
+                 'separate pages)')
             verb(f'- back side x offset : {args.back_offset_x:.1f} mm')
             verb(f'- back side y offset: {args.back_offset_y:.1f} mm')
             if args.only_front:
@@ -328,8 +341,9 @@ def main():
                 back_img = generator.loadCard(args.back_file,
                                               trans=aspect_trans,
                                               bleed=args.back_bleed)
-                verb(f'- loaded back side ({args.back_bleed:.1f} mm bleed):'
-                     f'    "{args.back_file}"')
+                _back_file = Utility.path_relative_to_home(args.back_file)
+                verb(f'- loaded back side ({args.back_bleed:.1f} mm bleed): '
+                     f'\n  {_back_file}')
                 if not args.twosided:
                     back_img = back_img.rotateHalfCircle()
             else:
@@ -375,8 +389,9 @@ def main():
                         back_img = generator.loadCard(back_name,
                                                       trans=aspect_trans,
                                                       bleed=back_bleed)
-                        verb(f'- loaded back side ({back_bleed:.1f} mm bleed) '
-                             f'"{back_name}"')
+                        _b_name = Utility.path_relative_to_home(back_name)
+                        verb(f'- loaded back side ({back_bleed:.1f} mm bleed):'
+                             f'\n  {_b_name}')
                         if not args.twosided:
                             back_img = back_img.rotateHalfCircle()
                     elif front_bleed is None:
@@ -386,15 +401,16 @@ def main():
                              f'{front_bleed:.1f} mm')
                     else:
                         # Next line is a file name for a card front image
-                        verb(f'- loading card: "{line}"')
+                        _card_file = Utility.path_relative_to_home(line)
+                        verb(f'- adding card: {_card_file}')
                         front_img = generator.loadCard(line,
                                                        trans=aspect_trans,
                                                        bleed=front_bleed)
-                        verb(f'- adding card')
                         generator.drawCard(front_img, back_img)
 
         # Write PDF file and close
-        verb(f'\nCard generation done, saving result as "{args.output}"\n')
+        _out_file = Utility.path_relative_to_home(args.output)
+        verb(f'\nCard generation done, saving pdf as {_out_file}\n')
         generator.finish()
     except Exception as e:
         # PDF did not generate successfully, remove PDF file and re-raise

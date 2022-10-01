@@ -1,3 +1,12 @@
+v0.5.4
+- New: changed default card width from 63.5 mm to 61.5 mm
+- New: changed folder name of config files to 'lcgtools'
+- New: game-specific .ini files are located in a separate config file subfolder
+- New: added 'overwrite' and 'append' as lcg_pdf config file options
+- New: added short versions of some command line option names
+- New: added 'verbose' property for lcg_pdf config file
+- New: added --version option for scripts
+
 v0.5.3
 - Fix: corrected case for default section in example.ini config file
 - New: added 'twosided' option for lcg_pdf config file
