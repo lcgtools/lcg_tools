@@ -1,3 +1,6 @@
+v0.5.5
+- Fix: minor Readme.md correction
+
 v0.5.4
 - New: changed default card width from 63.5 mm to 61.5 mm
 - New: changed folder name of config files to 'lcgtools'

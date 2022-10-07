@@ -126,8 +126,8 @@ The config file follows the basic INI file format of python's
 [configparser](https://docs.python.org/3/library/configparser.html) module. The
 name of the config file is either `lcg_pdf.ini` (the default configuration
 file), or `[game].ini`. The location for the config file is either
-`~/Library/Application\ Support/lcg_pdf/` (OSX), `~/.config/lcg_pdf/` (Linux) or
-`%userprofile%\appdata\Local\Cloudberries\lcg_pdf\` (Windows).
+`~/Library/Application\ Support/lcgtools/` (OSX), `~/.config/lcgtools/` (Linux) or
+`%userprofile%\appdata\Local\Cloudberries\lcgtools\` (Windows).
 
 Below is a config file `mc.ini` for a `--game mc` argument to `lcg_pdf`
 which includes profiles for "player", "encounter" and "villain" cards. Each
