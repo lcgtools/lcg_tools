@@ -360,17 +360,33 @@ class LcgCardPdfGenerator(QtGui.QPdfWriter):
         avail_width -= (2*self._margin + c_tot_width + self._spacing)
         if avail_width < 0:
             raise LcgException('Cannot fit any cards in the width dimension')
-        self._cards_per_page = 1 + int(avail_width/(c_tot_width+self._spacing))
+        self._cards_per_row = 1 + int(avail_width/(c_tot_width+self._spacing))
         avail_width = self._page_width_mm - 2*self._margin
-        space_width = avail_width - self._cards_per_page*c_tot_width
-        self._cards_xspace = space_width / (self._cards_per_page + 1)
+        space_width = avail_width - self._cards_per_row*c_tot_width
+        self._cards_xspace = space_width / (self._cards_per_row + 1)
         self._cards_xstart = self._margin + self._cards_xspace
 
-        # Calculate card positions - vertically
+
+        # Calculate card spacing and positions - vertically (2-sided)
         c_tot_height = self._c_height + 2*self._bleed
-        y_center = (self._page_height_mm/2)
-        self._cards_front_ypos = y_center - self._fold - c_tot_height
-        self._cards_back_ypos = y_center + self._fold
+        avail_height = self._page_height_mm
+        avail_height -= (2*self._margin + c_tot_height + self._spacing)
+        if avail_height < 0:
+            raise LcgException('Cannot fit cards in the height dimension')
+        self._cards_per_col = 1 + int(avail_height/(c_tot_height+self._spacing))
+        avail_height = self._page_height_mm - 2*self._margin
+        space_height = avail_height - self._cards_per_col*c_tot_height
+        self._cards_yspace = space_height / (self._cards_per_col + 1)
+        self._cards_ystart = self._margin + self._cards_yspace
+        self._cards_per_page = self._cards_per_row*self._cards_per_col
+
+        if self._folded:
+            # Vertical positions for folded printing
+            if self._cards_per_col < 2:
+                raise LcgException('Cannot fit cards in the height dimension')
+            y_center = (self._page_height_mm/2)
+            self._cards_front_ypos = y_center - self._fold - c_tot_height
+            self._cards_back_ypos = y_center + self._fold
 
         # Cache of cards (front, back) to be printed for 2-sided printing
         self._card_cache = []
@@ -431,7 +447,7 @@ class LcgCardPdfGenerator(QtGui.QPdfWriter):
         img = img.scaled(QtCore.QSize(w_px, h_px))
         return LcgImage(img)
 
-    def drawCard(self, front=None, back=None, _force=False):
+    def drawCard(self, front=None, back=None):
         """Draws a new card onto the PDF.
 
         :param front: image or color for front side of card
@@ -447,14 +463,15 @@ class LcgCardPdfGenerator(QtGui.QPdfWriter):
         is drawn instead. If it is None then a white rectangle is drawn.
 
         """
-        # If printing 2-sided, handle caching and flush when page is full
-        if not self._folded and not _force:
+        if self._folded:
+            self._draw_card_folded(front=front, back=back)
+        else:
             self._card_cache.append((front, back))
-            if len(self._card_cache) == 2*self._cards_per_page:
+            if len(self._card_cache) == self._cards_per_page:
                 self._flush_card_cache()
-            return
 
-        if self._card_current == 4:
+    def _draw_card_folded(self, front=None, back=None, _force=False):
+        if self._card_current == self._cards_per_row:
             # Start new PDF page
             self.newPage()
             self._current_page += 1
@@ -538,6 +555,85 @@ class LcgCardPdfGenerator(QtGui.QPdfWriter):
             else:
                 raise TypeError('Must be QImage or QColor')
 
+        self._card_current += 1
+
+    def _draw_card_two_sided(self, card_side):
+        # Add page when needed
+        if self._card_current == self._cards_per_page:
+            # Start new PDF page
+            self.newPage()
+            self._current_page += 1
+            self._card_current = 0
+        if self._current_page % 2 == 1:
+            off_x, off_y = 0, 0
+        else:
+            off_x = self.mm_to_px(self._ex_offset)
+            off_y = self.mm_to_px(self._ey_offset)
+
+        # Set various parameters
+        c_tot_width_mm = self._c_width + 2*self._bleed
+        c_tot_height_mm = self._c_height + 2*self._bleed
+        w_px = self.mm_to_px(c_tot_width_mm)
+        h_px = self.mm_to_px(c_tot_height_mm)
+        c_row = self._card_current // self._cards_per_row
+        c_col = self._card_current % self._cards_per_row
+        x_mm = self._cards_xstart
+        x_mm += c_col*(self._cards_xspace + c_tot_width_mm)
+        y_mm = self._cards_ystart
+        y_mm += c_row*(self._cards_yspace + c_tot_height_mm)
+        y_px = self.mm_to_px(y_mm)
+
+        painter = self.painter()
+
+        # Draw cut lines
+        if self._card_current == 0:
+            pen = QtGui.QPen('Black')
+            pen.setWidth(5)
+            painter.setPen(pen)
+
+            x_0_px = self.mm_to_px(self._margin)
+            x_1_px = self.mm_to_px(self._page_width_mm - self._margin)
+            for i in range(self._cards_per_col):
+                for y_offset in self._bleed, self._bleed + self._c_height:
+                    line_y_mm = self._cards_ystart
+                    line_y_mm += i*(self._cards_yspace + c_tot_height_mm)
+                    y_px = self.mm_to_px(line_y_mm + y_offset)
+                    painter.drawLine(x_0_px + off_x, y_px + off_y,
+                                     x_1_px + off_x, y_px + off_y)
+
+            y_0_px = self.mm_to_px(self._margin)
+            y_1_px = self.mm_to_px(self._page_height_mm - self._margin)
+            for i in range(self._cards_per_row):
+                for x_offset in self._bleed, self._bleed + self._c_width:
+                    line_x_mm = self._cards_xstart
+                    line_x_mm += i*(self._cards_xspace + c_tot_width_mm)
+                    x_px = self.mm_to_px(line_x_mm + x_offset)
+                    painter.drawLine(x_px + off_x, y_0_px + off_y,
+                                     x_px + off_x, y_1_px + off_y)
+
+        # Draw card image
+        x_px = self.mm_to_px(x_mm)
+        y_px = self.mm_to_px(y_mm)
+        if card_side is None:
+            card_side = QtGui.QColor('White')
+        if isinstance(card_side, QtGui.QImage):
+            img = card_side
+            img_pos = QtCore.QPoint(x_px + off_x, y_px + off_y)
+            painter.drawImage(img_pos, img)
+        elif isinstance(card_side, QtGui.QColor):
+            pen = QtGui.QPen('Black')
+            pen.setWidth(5)
+            painter.setPen(pen)
+            old_brush = painter.brush()
+            brush = QtGui.QBrush()
+            brush.setColor(card_side)
+            brush.setStyle(QtCore.Qt.SolidPattern)
+            painter.setBrush(brush)
+            pen = QtGui.QPen('Black')
+            painter.drawRect(x_px + off_x, y_px + off_y, w_px, h_px)
+            painter.setBrush(old_brush)
+        else:
+            raise TypeError('Must be QImage or QColor')
         self._card_current += 1
 
     def abort(self, remove=True):
@@ -629,48 +725,44 @@ class LcgCardPdfGenerator(QtGui.QPdfWriter):
         self._feed_dir = feed_dir
 
     @property
-    def cards_per_page(self):
-        """Max number of cards fitted per page of PDF document."""
-        return self._cards_per_page
+    def cards_per_row(self):
+        """Max number of cards fitted per row of PDF document."""
+        return self._cards_per_row
 
     def _flush_card_cache(self):
         """Draws the cards in the card cache (for 2-sided printing)."""
-        if not self._card_cache:
-            return
-        cards_per_row = self._cards_per_page
-        cards_per_page = 2*cards_per_row
         fronts, backs = zip(*(self._card_cache))
         fronts, backs = list(fronts), list(backs)
-        fronts += [None]*(cards_per_page - len(self._card_cache))
-        backs += [None]*(cards_per_page - len(self._card_cache))
+        fronts += [None]*(self._cards_per_page - len(self._card_cache))
+        backs += [None]*(self._cards_per_page - len(self._card_cache))
 
-        fronts_top = fronts[:cards_per_row]
-        fronts_bottom = fronts[cards_per_row:]
+        front_rows, back_rows = [], []
+        while fronts:
+            front_rows.append(fronts[:self._cards_per_row])
+            fronts = fronts[self._cards_per_row:]
+        while backs:
+            back_rows.append(backs[:self._cards_per_row])
+            backs = backs[self._cards_per_row:]
 
         if self._feed_dir == 'landscape':
-            backs_top = backs[:cards_per_row]
-            backs_top.reverse()
-            backs_bottom = backs[cards_per_row:]
-            backs_bottom.reverse()
+            for b_l in back_rows:
+                b_l.reverse()
+            _rotate = (self._c_width > self._c_height)
         elif self._feed_dir == 'portrait':
-            backs_top = backs[cards_per_row:]
-            backs_bottom = backs[:cards_per_row]
-            for img_list in backs_top, backs_bottom:
-                for i, img in enumerate(img_list):
-                    if img:
-                        img_list[i] = img.rotateHalfCircle()
+            back_rows.reverse()
+            _rotate = (self._c_width < self._c_height)
         else:
             raise NotImplementedError('Should never happen')
+        if _rotate:
+            for b_l in back_rows:
+                for i, b in enumerate(b_l):
+                    if b:
+                        b_l[i] = b.rotateHalfCircle()
 
-        print_set = []
-        if self._odd:
-            # Draw card fronts
-            print_set.append((fronts_top, fronts_bottom))
-        if self._even:
-            print_set.append((backs_top, backs_bottom))
-
-        for tops, bottoms in print_set:
-            for top, bottom in zip(tops, bottoms):
-                self.drawCard(top, bottom, _force=True)
+        # Draw all the cards
+        for row_l in front_rows, back_rows:
+            for row in row_l:
+                for card_side in row:
+                    self._draw_card_two_sided(card_side)
 
         self._card_cache = []

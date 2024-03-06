@@ -1,3 +1,8 @@
+v0.5.6
+- New: pdf generation fits as many cards as possible on a page
+- Fix: pdf generation card layout with non-standard card sizes
+
+
 v0.5.5
 - Fix: minor Readme.md correction
 
