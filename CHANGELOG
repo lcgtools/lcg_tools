@@ -1,3 +1,6 @@
+v0.5.7
+- Fix: script should no longer with error message for cards_per_page attribute
+
 v0.5.6
 - New: pdf generation fits as many cards as possible on a page
 - Fix: pdf generation card layout with non-standard card sizes

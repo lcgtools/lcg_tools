@@ -293,7 +293,7 @@ def main():
         verb(f'- size with bleed    : {(args.width+2*args.bleed):.1f}x'
              f'{(args.height + 2*args.bleed):.1f} mm')
         verb(f'- card spacing (min) : {args.spacing:.1f} mm')
-        verb(f'- max cards per page : {generator.cards_per_page}')
+        verb(f'- max cards per page : {generator._cards_per_page}')
 
         verb('')
         if not args.twosided:
